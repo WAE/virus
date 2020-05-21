@@ -6,31 +6,41 @@
 # To check the files use; sha512sum -c sha512.sum
 ################################################################################
 set -eu
-MTIME="$(ls -l --time-style=+"%s" .git/ORIG_HEAD 2>/dev/null | awk '{print $6}')"
-TIME="$(date +%s)"
-([[ ! -z "${MTIME##*[!0-9]*}" ]] && (if [[ $(($TIME - $MTIME)) -gt 43200 ]] ; then git pull ; fi) || git pull) || (printf "%s\\n" "Signal generated at [ ! -z \${num##*[!0-9]*} ]" && git pull)
-.scripts/maintenance/vgen.sh
-rm -f *.sum
-FILELIST=( $(find . -type f | grep -vw .git | sort) )
-CHECKLIST=(sha512sum) # md5sum sha1sum sha224sum sha256sum sha384sum sha512sum shasum
-for SCHECK in ${CHECKLIST[@]}
-do
-	printf "%s\\n" "Creating $SCHECK file..."
-	for FILE in "${FILELIST[@]}"
+_DOSUMSBASH_ () {
+	MTIME="$(ls -l --time-style=+"%s" .git/ORIG_HEAD 2>/dev/null | awk '{print $6}')"
+	TIME="$(date +%s)"
+	([[ ! -z "${MTIME##*[!0-9]*}" ]] && (if [[ $(($TIME - $MTIME)) -gt 43200 ]] ; then git pull ; fi) || git pull) || (printf "%s\\n" "Signal generated at [ ! -z \${num##*[!0-9]*} ]" && git pull)
+	.scripts/maintenance/vgen.sh
+	rm -f *.sum
+	FILELIST=( $(find . -type f | grep -vw .git | sort) )
+	CHECKLIST=(sha512sum) # md5sum sha1sum sha224sum sha256sum sha384sum sha512sum shasum
+	for SCHECK in ${CHECKLIST[@]}
 	do
-		$SCHECK "$FILE" >> ${SCHECK::-3}.sum
+		printf "%s\\n" "Creating $SCHECK file..."
+		for FILE in "${FILELIST[@]}"
+		do
+			$SCHECK "$FILE" >> ${SCHECK::-3}.sum
+		done
 	done
-done
-chmod 400 ${SCHECK::-3}.sum 
-for SCHECK in  ${CHECKLIST[@]}
-do
-	printf "%s\\n" "Checking $SCHECK..."
-	$SCHECK -c ${SCHECK::-3}.sum
-done
-git add .
-SN="$(sn.sh)" # sn.sh is found in https://github.com/BuildAPKs/maintenance.BuildAPKs/blob/master/sn.sh
-git commit -m "$SN"
-git push
-ls
-printf "%s\\n" "$PWD"
+	chmod 400 ${SCHECK::-3}.sum 
+	for SCHECK in  ${CHECKLIST[@]}
+	do
+		printf "%s\\n" "Checking $SCHECK..."
+		$SCHECK -c ${SCHECK::-3}.sum
+	done
+	git add .
+	SN="$(sn.sh)" # sn.sh is found in https://github.com/BuildAPKs/maintenance.BuildAPKs/blob/master/sn.sh
+	if [[ -z "${1:-}" ]]
+	then 
+		git commit -m "$SN"
+	elif [[ "${1//-}" = [Ss]* ]] 
+	then
+		git commit -a -S -m "$SN" 
+		pkill gpg-agent
+	fi
+	git push
+	ls
+	printf "%s\\n" "$PWD"
+}
+[ "${PWD##*/}" = virus ] && _DOSUMSBASH_ "$@" || printf "%s\\n" "Run ${0##*/} in git repository root directory;  EXITING..." 
 # do.sums.bash EOF
